@@ -1,0 +1,27 @@
+# Build outputs
+build/
+build-asan/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Binaries and libs
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.lib
+*.exe
+
+# Debug / symbols
+*.pdb
+*.dSYM/
+*.dSYM.zip
+
+# OS/editor
+.DS_Store
+*.swp
