@@ -40,17 +40,17 @@ VNEAudioFrame :: struct {
     data:            ^u8, // interleaved S16
 }
 
-foreign import vnef_video "vnef_video"
+foreign import vnef_video "../../build/libvnef_video.so"
 
 foreign vnef_video {
-    vne_video_open             :: proc(path: cstring, out_info: ^VNEVideoInfo) -> ^VNEVideo
-    vne_video_close            :: proc(v: ^VNEVideo)
-    vne_video_last_error       :: proc(v: ^VNEVideo) -> cstring
+    vne_video_open             :: proc(path: cstring, out_info: ^VNEVideoInfo) -> ^VNEVideo ---
+    vne_video_close            :: proc(v: ^VNEVideo) ---
+    vne_video_last_error       :: proc(v: ^VNEVideo) -> cstring ---
 
-    vne_video_next             :: proc(v: ^VNEVideo, out_video: ^VNEVideoFrame, out_audio: ^VNEAudioFrame) -> VNEFrameType
+    vne_video_next             :: proc(v: ^VNEVideo, out_video: ^VNEVideoFrame, out_audio: ^VNEAudioFrame) -> VNEFrameType ---
 
-    vne_video_free_video_frame :: proc(f: ^VNEVideoFrame)
-    vne_video_free_audio_frame :: proc(f: ^VNEAudioFrame)
+    vne_video_free_video_frame :: proc(f: ^VNEVideoFrame) ---
+    vne_video_free_audio_frame :: proc(f: ^VNEAudioFrame) ---
 
-    vne_video_seek_ms          :: proc(v: ^VNEVideo, target_ms: i64) -> c.int
+    vne_video_seek_ms          :: proc(v: ^VNEVideo, target_ms: i64) -> c.int ---
 }
