@@ -66,3 +66,4 @@ This project is MIT (see `LICENSE`).
 
 FFmpeg is **not** bundled. You are responsible for complying with FFmpeg’s license in your distribution.
 Using LGPL builds with dynamic linking is the simplest compliance path.
+See `THIRD_PARTY_NOTICES.md` for a summary of FFmpeg licensing obligations.
