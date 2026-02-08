@@ -50,6 +50,9 @@ cmake --build build
 ./build/vnef_dump /path/to/file.video
 ```
 
+## Debug Logging
+Build with `-DVNEF_VIDEO_DEBUG=1` to enable verbose decode logs. Default is off.
+
 ## API Overview
 See `include/vnef_video.h`.
 

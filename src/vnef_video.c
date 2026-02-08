@@ -18,6 +18,16 @@
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 
+#ifndef VNEF_VIDEO_DEBUG
+#define VNEF_VIDEO_DEBUG 0
+#endif
+
+#if VNEF_VIDEO_DEBUG
+#define VNEF_LOG(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define VNEF_LOG(...) ((void)0)
+#endif
+
 struct VNEVideo {
     AVFormatContext *fmt;
     AVCodecContext *vdec;
@@ -496,12 +506,12 @@ const char *vne_video_last_error(VNEVideo *v) {
 static int try_receive_video(VNEVideo *v, VNEVideoFrame *out_video) {
     if (!v->vdec || !out_video) return 0;
 
-    fprintf(stderr, "[VIDEO] Entering try_receive_video\n");
+    VNEF_LOG("[VIDEO] Entering try_receive_video\n");
     fflush(stderr);
 
     int ret = avcodec_receive_frame(v->vdec, v->vframe);
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-        fprintf(stderr, "[VIDEO] No frame available (EAGAIN or EOF)\n");
+        VNEF_LOG("[VIDEO] No frame available (EAGAIN or EOF)\n");
         fflush(stderr);
         return 0;
     }
@@ -510,7 +520,7 @@ static int try_receive_video(VNEVideo *v, VNEVideoFrame *out_video) {
         return -1;
     }
 
-    fprintf(stderr, "[VIDEO] Got video frame\n");
+    VNEF_LOG("[VIDEO] Got video frame\n");
     fflush(stderr);
 
     int width = v->vframe->width;
@@ -555,7 +565,7 @@ static int try_receive_video(VNEVideo *v, VNEVideoFrame *out_video) {
         return -1;
     }
     
-    fprintf(stderr, "[VIDEO] av_image_alloc returned size=%d, buffer at %p\n", buf_size, (void*)dst_data[0]);
+    VNEF_LOG("[VIDEO] av_image_alloc returned size=%d, buffer at %p\n", buf_size, (void*)dst_data[0]);
     fflush(stderr);
 
     int scaled = sws_scale(v->sws,
@@ -580,7 +590,7 @@ static int try_receive_video(VNEVideo *v, VNEVideoFrame *out_video) {
     out_video->data = dst_data[0];
     out_video->pts_ms = pts_to_ms(v->vstream, best_pts);
 
-    fprintf(stderr, "[VIDEO] Returning video buffer %p to caller\n", (void*)dst_data[0]);
+    VNEF_LOG("[VIDEO] Returning video buffer %p to caller\n", (void*)dst_data[0]);
     fflush(stderr);
 
     av_frame_unref(v->vframe);
@@ -602,7 +612,7 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
     int channels = v->adec->ch_layout.nb_channels > 0 ? v->adec->ch_layout.nb_channels : v->adec->channels;
     int samples = v->aframe->nb_samples;
     
-    fprintf(stderr, "[AUDIO] Received frame: samples=%d channels=%d fmt=%s\n",
+    VNEF_LOG("[AUDIO] Received frame: samples=%d channels=%d fmt=%s\n",
             samples, channels, av_get_sample_fmt_name(v->adec->sample_fmt));
     fflush(stderr);
     
@@ -619,7 +629,7 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
         max_out_samples = samples;
     }
     
-    fprintf(stderr, "[AUDIO] Calculating buffer: delay=%ld max_out_samples=%d\n", (long)delay, max_out_samples);
+    VNEF_LOG("[AUDIO] Calculating buffer: delay=%ld max_out_samples=%d\n", (long)delay, max_out_samples);
 
     // Allocate output buffer - S16 is interleaved so we only need one buffer
     int buf_size = av_samples_get_buffer_size(NULL, channels, max_out_samples, AV_SAMPLE_FMT_S16, 1);
@@ -629,7 +639,7 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
         return -1;
     }
     
-    fprintf(stderr, "[AUDIO] Allocating %d bytes\n", buf_size);
+    VNEF_LOG("[AUDIO] Allocating %d bytes\n", buf_size);
 
     uint8_t *out_buf = (uint8_t *)av_malloc((size_t)buf_size);
     if (!out_buf) {
@@ -638,7 +648,7 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
         return -1;
     }
     
-    fprintf(stderr, "[AUDIO] Allocated buffer at %p\n", (void*)out_buf);
+    VNEF_LOG("[AUDIO] Allocated buffer at %p\n", (void*)out_buf);
 
     // Set up output pointer array for swr_convert (even for interleaved, needs array)
     uint8_t *out_ptrs[1] = { out_buf };
@@ -653,7 +663,7 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
     );
 
     if (converted < 0) {
-        fprintf(stderr, "[AUDIO] swr_convert failed, freeing %p\n", (void*)out_buf);
+        VNEF_LOG("[AUDIO] swr_convert failed, freeing %p\n", (void*)out_buf);
         set_ff_error(v, converted, "swr_convert failed");
         av_freep(&out_buf);
         av_frame_unref(v->aframe);
@@ -661,26 +671,26 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
     }
 
     if (converted == 0) {
-        fprintf(stderr, "[AUDIO] swr_convert returned 0, freeing %p\n", (void*)out_buf);
+        VNEF_LOG("[AUDIO] swr_convert returned 0, freeing %p\n", (void*)out_buf);
         set_error(v, "swr_convert returned 0 samples");
         av_freep(&out_buf);
         av_frame_unref(v->aframe);
         return -1;
     }
     
-    fprintf(stderr, "[AUDIO] Converted %d samples\n", converted);
+    VNEF_LOG("[AUDIO] Converted %d samples\n", converted);
 
     // Calculate actual size of converted data
     int actual_size = av_samples_get_buffer_size(NULL, channels, converted, AV_SAMPLE_FMT_S16, 1);
     if (actual_size < 0) {
-        fprintf(stderr, "[AUDIO] Failed to calc actual size, freeing %p\n", (void*)out_buf);
+        VNEF_LOG("[AUDIO] Failed to calc actual size, freeing %p\n", (void*)out_buf);
         set_ff_error(v, actual_size, "failed to calculate converted buffer size");
         av_freep(&out_buf);
         av_frame_unref(v->aframe);
         return -1;
     }
     
-    fprintf(stderr, "[AUDIO] Actual size: %d bytes (allocated: %d)\n", actual_size, buf_size);
+    VNEF_LOG("[AUDIO] Actual size: %d bytes (allocated: %d)\n", actual_size, buf_size);
 
     // DON'T trim - just return the full buffer to avoid any realloc issues
 
@@ -693,7 +703,7 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
     out_audio->data = out_buf;
     out_audio->pts_ms = pts_to_ms(v->astream, best_pts);
     
-    fprintf(stderr, "[AUDIO] Returning buffer %p to caller\n", (void*)out_buf);
+    VNEF_LOG("[AUDIO] Returning buffer %p to caller\n", (void*)out_buf);
     fflush(stderr);
 
     av_frame_unref(v->aframe);
@@ -703,25 +713,25 @@ static int try_receive_audio(VNEVideo *v, VNEAudioFrame *out_audio) {
 VNEFrameType vne_video_next(VNEVideo *v, VNEVideoFrame *out_video, VNEAudioFrame *out_audio) {
     if (!v) return VNE_FRAME_ERROR;
 
-    fprintf(stderr, "[NEXT] vne_video_next called, out_video=%p out_audio=%p\n", (void*)out_video, (void*)out_audio);
+    VNEF_LOG("[NEXT] vne_video_next called, out_video=%p out_audio=%p\n", (void*)out_video, (void*)out_audio);
     fflush(stderr);
 
     for (;;) {
-        fprintf(stderr, "[NEXT] Loop iteration: trying video\n");
+        VNEF_LOG("[NEXT] Loop iteration: trying video\n");
         fflush(stderr);
         int got = try_receive_video(v, out_video);
         if (got == 1) {
-            fprintf(stderr, "[NEXT] Returning VIDEO frame\n");
+            VNEF_LOG("[NEXT] Returning VIDEO frame\n");
             fflush(stderr);
             return VNE_FRAME_VIDEO;
         }
         if (got < 0) return VNE_FRAME_ERROR;
 
-        fprintf(stderr, "[NEXT] Trying audio\n");
+        VNEF_LOG("[NEXT] Trying audio\n");
         fflush(stderr);
         got = try_receive_audio(v, out_audio);
         if (got == 1) {
-            fprintf(stderr, "[NEXT] Returning AUDIO frame\n");
+            VNEF_LOG("[NEXT] Returning AUDIO frame\n");
             fflush(stderr);
             return VNE_FRAME_AUDIO;
         }
@@ -755,7 +765,7 @@ VNEFrameType vne_video_next(VNEVideo *v, VNEVideoFrame *out_video, VNEAudioFrame
 
 void vne_video_free_video_frame(VNEVideoFrame *f) {
     if (!f) return;
-    fprintf(stderr, "[VIDEO] Freeing video frame buffer %p\n", (void*)f->data);
+    VNEF_LOG("[VIDEO] Freeing video frame buffer %p\n", (void*)f->data);
     fflush(stderr);
     if (f->data) av_free(f->data);
     f->data = NULL;
@@ -768,7 +778,7 @@ void vne_video_free_video_frame(VNEVideoFrame *f) {
 void vne_video_free_audio_frame(VNEAudioFrame *f) {
     if (!f) return;
     if (f->data) {
-        fprintf(stderr, "[AUDIO] Freeing audio frame buffer %p\n", (void*)f->data);
+        VNEF_LOG("[AUDIO] Freeing audio frame buffer %p\n", (void*)f->data);
         av_free(f->data);
     }
     f->data = NULL;
